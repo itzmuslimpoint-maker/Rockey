@@ -59,9 +59,13 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('connected') === 'true') {
       setIsInstagramConnected(true);
+      // If they have a Supabase session OR a cookie session, the auth init
+      // logic below will lift them into the Dashboard. We just need to make
+      // sure that if they happen to NOT be logged in, they end up on the
+      // login page rather than the marketing page.
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-    
+
     if (params.get('error')) {
       const errorMsg = params.get('error') || "";
       if (errorMsg.includes('BUSINESS_ACCOUNT_REQUIRED')) {
