@@ -1,0 +1,16 @@
+/// <reference types="vite/client" />
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error("Supabase environment variables are missing. Please check your deployment settings.");
+}
+
+export const isSupabaseConfigured = !!supabaseUrl && supabaseUrl.startsWith('https://');
+
+export const supabase = createClient(
+  supabaseUrl || "https://placeholder-url.supabase.co",
+  supabaseAnonKey || "placeholder-key"
+);

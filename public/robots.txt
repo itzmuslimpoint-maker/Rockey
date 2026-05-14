@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Block admin/private areas
+Disallow: /dashboard/
+Disallow: /account/
+Disallow: /api/
+Disallow: /admin/
+
+# Sitemap location
+Sitemap: https://dmflow.site/sitemap.xml
