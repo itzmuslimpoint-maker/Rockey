@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '../../../supabaseClient';
 
 /**
- * Lands here after Facebook/Instagram OAuth.
- * Reads `code` + `state` from the URL, posts to /api/instagram/exchange,
- * and redirects the user to / (which renders the Dashboard once logged in).
+ * Lands here after Facebook OR Instagram OAuth.
+ * State carries which flow we used so we hit the correct exchange endpoint.
  */
 export default function InstagramCallback() {
   const [status, setStatus] = useState('Connecting your Instagram account...');
@@ -14,31 +13,46 @@ export default function InstagramCallback() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     const fbError = params.get('error_description') || params.get('error');
-    const stateUserId = params.get('state');
+    const rawState = params.get('state');
 
     if (fbError) {
       setError(decodeURIComponent(fbError.replace(/\+/g, ' ')));
       setStatus('Connection failed.');
       return;
     }
-
     if (!code) {
-      setError('No authorization code returned by Facebook.');
+      setError('No authorization code returned.');
       setStatus('Connection failed.');
       return;
     }
 
+    // Decode state — could be a plain userId (legacy) or a JSON object.
+    let stateUserId: string | null = null;
+    let method: 'facebook' | 'direct' = 'facebook';
+    if (rawState) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(rawState));
+        stateUserId = parsed.userId || null;
+        if (parsed.method === 'direct') method = 'direct';
+      } catch {
+        stateUserId = rawState;
+      }
+    }
+
     (async () => {
       try {
-        // Prefer the userId baked into `state`, otherwise look up the
-        // current Supabase session.
-        let userId: string | null = stateUserId || null;
+        let userId: string | null = stateUserId;
         if (!userId && isSupabaseConfigured) {
           const { data } = await supabase.auth.getSession();
           userId = data.session?.user?.id ?? null;
         }
 
-        const r = await fetch('/api/instagram/exchange', {
+        const endpoint =
+          method === 'direct'
+            ? '/api/instagram/exchange-direct'
+            : '/api/instagram/exchange';
+
+        const r = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, userId }),
@@ -52,8 +66,6 @@ export default function InstagramCallback() {
         }
 
         setStatus(`Connected as @${json.user?.username}. Redirecting...`);
-        // Strip query params and send the user back into the app where
-        // App.tsx will read ?connected=true and bounce them to the dashboard.
         setTimeout(() => {
           window.location.href = '/?connected=true';
         }, 1200);
@@ -78,8 +90,8 @@ export default function InstagramCallback() {
             <strong className="block mb-1">Connection failed</strong>
             {error}
             <p className="mt-3 text-xs text-red-500/80">
-              Common causes: redirect URI mismatch in your Meta App, the Instagram account is
-              not a Business/Creator account, or it isn't linked to a Facebook Page.
+              Common causes: redirect URI mismatch in your Meta App, the Instagram account
+              isn't a Business/Creator account, or it isn't linked to a Facebook Page.
             </p>
           </div>
         )}

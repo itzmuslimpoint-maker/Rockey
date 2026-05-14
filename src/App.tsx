@@ -25,6 +25,7 @@ import BlogList from "./pages/blog/BlogList";
 import BlogPost from "./pages/blog/BlogPost";
 import SEO from "./components/SEO";
 import Onboarding from "./components/Onboarding";
+import InstagramQuickConnect from "./components/InstagramQuickConnect";
 import AccountTypeDialog from "./components/AccountTypeDialog";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
 
@@ -53,6 +54,13 @@ export default function App() {
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [showAccountTypeDialog, setShowAccountTypeDialog] = useState(false);
+  /** Drives the "after-login" connect flow:
+   *  - 'choose'   → ConnectAccount choice screen (FB / IG)
+   *  - 'ig-quick' → 3-step Instagram-direct flow (search → confirm → authorize)
+   *  - null       → no override; falls through to Dashboard if connected,
+   *                  or to choose screen if not.
+   */
+  const [connectFlow, setConnectFlow] = useState<null | 'choose' | 'ig-quick'>(null);
 
   useEffect(() => {
     // 1. URL Parameter Processing (one-time on mount)
@@ -380,6 +388,39 @@ export default function App() {
   }
 
   if (isLoggedIn) {
+    // After login, if Instagram is not yet connected, walk the user through
+    // the connect flow (choice screen → quick-connect → OAuth → dashboard).
+    if (!isInstagramConnected && !onboardingSkipped) {
+      if (connectFlow === 'ig-quick') {
+        return (
+          <InstagramQuickConnect
+            onBack={() => setConnectFlow('choose')}
+            onSwitchToFacebook={() => handleInstagramConnect('facebook')}
+            onAuthorize={async () => {
+              await handleInstagramConnect('instagram');
+            }}
+          />
+        );
+      }
+      // Default: choice screen
+      return (
+        <Onboarding
+          onConnect={(type) => {
+            if (type === 'instagram') {
+              setConnectFlow('ig-quick');
+            } else {
+              handleInstagramConnect('facebook');
+            }
+          }}
+          onSkip={() => {
+            setOnboardingSkipped(true);
+            setConnectFlow(null);
+          }}
+          isLoading={onboardingLoading}
+        />
+      );
+    }
+
     return <Dashboard onLogout={handleLogout} onInstagramConnect={handleInstagramConnect} />;
   }
 
